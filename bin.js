@@ -124,7 +124,7 @@ const match = subcommand({
       if (args.v || args.version) {
         console.log('CTZN', pkg.version)
       } else {
-        tui.start({pkg})
+        tui.start({pkg, configDir: args.configDir})
       }
     }
   }
