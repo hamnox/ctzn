@@ -25,6 +25,7 @@ export let publicServerDb = undefined
 export let privateServerDb = undefined
 export let publicDbs = new CaseInsensitiveMap()
 export let privateDbs = new CaseInsensitiveMap()
+export let baseCommunity = undefined
 
 export async function setup ({configDir, hyperspaceHost, hyperspaceStorage, simulateHyperspace}) {
   await hyperspace.setup({hyperspaceHost, hyperspaceStorage, simulateHyperspace})
@@ -48,6 +49,56 @@ export async function setup ({configDir, hyperspaceHost, hyperspaceStorage, simu
 
   views.setup()
   await loadMemberUserDbs()
+
+  // after loading member dbs, check for baseCommunity
+    const baseUserId = constructUserId(config.baseCommunityName)
+    const baseCommunityUserEntry = await publicServerDb.users.get(baseUserId)
+
+    if (baseCommunityUserEntry) {
+      if (!publicDbs.has(baseUserId)) {
+        // if just not loaded, load db
+        baseCommunity = new PublicCommunityDB(baseUserId, baseCommunityUserEntry.value.dbUrl || config.baseCommunity)
+        await baseCommunity.setup()
+        publicDbs.set(baseUserId, baseCommunity)
+        baseCommunity.watch(onDatabaseChange)
+        baseCommunity.on('subscriptions-changed', loadOrUnloadExternalUserDbs)
+      } else {
+        baseCommunity = publicDbs.get(baseUserId)
+      }
+    }  else {
+      // create base community, add key to config
+      let release = await lock(`create-user:${config.baseCommunityName}`)
+      try {
+        if (publicDbs.has(baseUserId)) {
+          throw new Error("Base Community Name already in use")
+        }
+        const userInfo = {
+          type: 'community',
+          username: config.baseCommunityName,
+          dbUrl: `hyper://${'0'.repeat(64)}/`,
+          joinDate: (new Date()).toISOString(),
+        }
+        const profileInfo = {displayName: "Base Community"}
+
+        schemas.get('ctzn.network/profile').assertValid(profileInfo)
+        schemas.get('ctzn.network/user').assertValid(userInfo)
+        baseCommunity = new PublicCommunityDB(baseUserId, config.baseCommunity || null)
+        await baseCommunity.setup()
+        baseCommunity.watch(onDatabaseChange)
+        baseCommunity.on('subscriptions-changed', loadOrUnloadExternalUserDbs)
+
+        await baseCommunity.profile.put('self', profileInfo)
+        userInfo.dbUrl = baseCommunity.url
+        await publicServerDb.users.put(config.baseCommunityName, userInfo)
+        publicDbs.set(userId, publicDb)
+
+        config.baseCommunity = baseCommunity.key.toString('hex')
+        await saveDbConfig()
+      } finally {
+        release()
+      }
+    }
+
   await loadOrUnloadExternalUserDbs()
   /* dont await */ catchupAllIndexes()
 }
@@ -163,7 +214,9 @@ async function readDbConfig () {
     }
     config = {
       publicServer: null,
-      privateServer: null
+      privateServer: null,
+      baseCommunityName: "base-community",
+      baseCommunity: null
     }
   }
 
@@ -178,6 +231,21 @@ async function readDbConfig () {
     config.privateServer = null
   } else if (typeof config.privateServer !== 'string' || !HYPER_KEY.test(config.privateServer)) {
     console.error('Invalid dbconfig value for privateServer:', config.privateServer)
+    console.error('Must be a 64-character hex string representing a hyperbee key')
+    process.exit(1)
+  }
+  if (!config.baseCommunityName) {
+    config.baseCommunityName = "base-community"
+  } else if (typeof config.baseCommunity !== 'string') {
+    console.error('Invalid dbconfig value for baseCommunityName:', config.baseCommunityName)
+    console.error('Must be a string')
+    process.exit(1)
+  }
+
+  if (!config.baseCommunity) {
+    config.baseCommunity = null
+  } else if (typeof config.baseCommunity !== 'string' || !HYPER_KEY.test(config.privateServer)) {
+    console.error('Invalid dbconfig value for baseCommunity:', config.baseCommunity)
     console.error('Must be a 64-character hex string representing a hyperbee key')
     process.exit(1)
   }
