@@ -45,27 +45,27 @@ export async function setup ({configDir, hyperspaceHost, hyperspaceStorage, simu
 
   config.publicServer = publicServerDb.key.toString('hex')
   config.privateServer = privateServerDb.key.toString('hex')
-  await saveDbConfig()
 
   views.setup()
   await loadMemberUserDbs()
 
   // after loading member dbs, check for baseCommunity
     const baseUserId = constructUserId(config.baseCommunityName)
-    const baseCommunityUserEntry = await publicServerDb.users.get(baseUserId)
+    const baseCommunityUserEntry = await publicServerDb.users.get(config.baseCommunityName)
 
-    if (baseCommunityUserEntry) {
+    if (baseCommunityUserEntry?.value) {
       if (!publicDbs.has(baseUserId)) {
         // if just not loaded, load db
-        baseCommunity = new PublicCommunityDB(baseUserId, baseCommunityUserEntry.value.dbUrl || config.baseCommunity)
+        baseCommunity = new PublicCommunityDB(baseUserId, baseCommunityUserEntry.value.dbUrl)
         await baseCommunity.setup()
         publicDbs.set(baseUserId, baseCommunity)
+        config.baseCommunity = baseCommunity.key.toString('hex')
         baseCommunity.watch(onDatabaseChange)
         baseCommunity.on('subscriptions-changed', loadOrUnloadExternalUserDbs)
       } else {
         baseCommunity = publicDbs.get(baseUserId)
       }
-    }  else {
+    } else {
       // create base community, add key to config
       let release = await lock(`create-user:${config.baseCommunityName}`)
       try {
@@ -90,15 +90,15 @@ export async function setup ({configDir, hyperspaceHost, hyperspaceStorage, simu
         await baseCommunity.profile.put('self', profileInfo)
         userInfo.dbUrl = baseCommunity.url
         await publicServerDb.users.put(config.baseCommunityName, userInfo)
-        publicDbs.set(userId, publicDb)
+        publicDbs.set(baseUserId, baseCommunity)
 
         config.baseCommunity = baseCommunity.key.toString('hex')
-        await saveDbConfig()
       } finally {
         release()
       }
     }
 
+  await saveDbConfig()
   await loadOrUnloadExternalUserDbs()
   /* dont await */ catchupAllIndexes()
 }
@@ -215,7 +215,7 @@ async function readDbConfig () {
     config = {
       publicServer: null,
       privateServer: null,
-      baseCommunityName: "base-community",
+      baseCommunityName: null,
       baseCommunity: null
     }
   }
