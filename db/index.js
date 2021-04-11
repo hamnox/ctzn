@@ -114,7 +114,24 @@ export async function setup ({configDir, hyperspaceHost, hyperspaceStorage, simu
   /* dont await */ catchupAllIndexes()
 }
 
-export async function createUser ({type, username, email, password, profile}) {
+export async function createLwUser({_id, slug, email, bio, linkUrl, displayName}) {
+  let username = slug.replaceAll("_", "--")
+  if (RESERVED_USERNAMES.includes(username)) {
+    throw new Error(`Username is reserved: ${username}`)
+  }
+
+  let release = await lock(`create-user:${username}`)
+  try {
+    const userId = constructUserId(username)
+    c
+  }
+}
+
+// take an existing LwUser and make a privateDb / login credentials for them
+export async function createLwAccount({}) {
+
+}
+export async function _createUser ({type, username, email, password, profile}) {
   if (type !== 'citizen' && type !== 'community') {
     throw new Error(`Invalid type "${type}": must be 'citizen' or 'community'`)
   }
