@@ -18,6 +18,7 @@
   "dependencies": {
     "ajv": "^7.0.3",
     "ajv-formats": "^1.5.1",
+    "apollo-server": "^2.22.2",
     "ava": "^3.15.0",
     "await-lock": "^2.1.0",
     "blessed": "^0.1.81",
@@ -52,6 +53,5 @@
     "tmp-promise": "^3.0.2",
     "uuid": "^8.3.2",
     "ws": "^7.4.2"
-  },
-  "devDependencies": {}
+  }
 }
