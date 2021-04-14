@@ -16,6 +16,7 @@ import * as fs from 'fs'
 import { fileURLToPath } from 'url'
 import * as os from 'os'
 import { setOrigin, getDomain, parseAcctUrl, usernameToUserId, DEBUG_MODE_PORTS_MAP } from './lib/strings.js'
+import * as graphQL from './graphql/index.js'
 
 const PACKAGE_JSON_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'package.json')
 const PACKAGE_JSON = JSON.parse(fs.readFileSync(PACKAGE_JSON_PATH, 'utf8'))
@@ -190,6 +191,7 @@ export async function start (opts) {
 
   await email.setup(config)
   await db.setup(config)
+  await graphQL.setup(config)
 
   // process.on('SIGINT', close)
   // process.on('SIGTERM', close)

@@ -1,0 +1,22 @@
+type Query {
+    users: [UserRef]!
+    sessionInfo: SessionInfo
+}
+
+type Mutation {
+    login(username: String!, password: String!): SessionInfo
+    signup(username: String!, email: String!, password: String!, displayName: String!, description: String): SessionInfo
+}
+
+type UserRef {
+    username: String!
+    domain: String!
+    userId: String!
+    dbUrl: String!
+}
+
+type SessionInfo {
+    userRef: UserRef!
+    sessionId: String!
+    createdAt: String!
+}
