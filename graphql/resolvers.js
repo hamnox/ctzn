@@ -1,14 +1,18 @@
 import * as errors from '../lib/errors.js'
 import * as db from '../db/index.js'
-import { createValidator } from '../lib/schemas.js'
 
 import { getDomain, constructUserId, constructUserUrl, parseUserId } from '../lib/strings.js'
 import { verifyPassword } from '../lib/crypto.js'
+import { createValidator } from '../lib/schemas.js'
+
+import {registerParam} from './validators.js'
 
 import { v4 as uuidv4 } from 'uuid'
+import { userToUserRef } from './util.js'
 
-export const userRefResolver = {
-    userId: ({userId, username, domain, dbUrl}) => {
+
+const userRefResolver = {
+    userId: ({ userId, username, domain, dbUrl }) => {
         if (userId) return userId
         if (username && domain) return `${username}@${domain}`
         if (dbUrl) {
@@ -17,33 +21,20 @@ export const userRefResolver = {
         }
         throw new Error('userId not found')
     },
-    username: ({username, userId}) => {
+    username: ({ username, userId }) => {
         if (username) return username
         if (userId) return parseUserId(userId).username
         throw new Error('username not found')
     },
-    domain: ({domain, userId}) => domain || parseUserId(userId).domain,
-    dbUrl: ({userId, dbUrl}) => {
+    domain: ({ domain, userId }) => domain || parseUserId(userId).domain,
+    dbUrl: ({ userId, dbUrl }) => {
         if (dbUrl) return dbUrl
         if (userId) return db.publicDbs.get(userId)
         throw new Error('dbUrl not found')
     }
 }
 
-const registerParam = createValidator({
-    type: 'object',
-    required: ['username', 'displayName'],
-    additionalProperties: false,
-    properties: {
-        username: { type: 'string', pattern: "^([a-zA-Z][a-zA-Z0-9-]{1,62}[a-zA-Z0-9])$" },
-        email: { type: 'string', format: "email" },
-        password: { type: 'string', minLength: 1 },
-        displayName: { type: 'string', minLength: 1, maxLength: 64 },
-        description: { type: 'string', maxLength: 256 }
-    }
-})
-
-export async function signup(parent, info, context) {
+async function signupResolver(parent, info, context) {
     info = info || {}
     registerParam.assert(info)
 
@@ -66,39 +57,8 @@ export async function signup(parent, info, context) {
 
 
 }
-async function sessionInfoFromRecord(record) {
-    const username = record.value.username
-    const user = await db.publicServerDb.users.get(username)
-    if (!user) {
-        throw new errors.NotFoundError('User not found')
-    }
-    return {
-        sessionId: record.value.sessionId,
-        userRef: {
-            userId: constructUserId(username),
-            dbUrl: user.value.dbUrl,
-        },
-        createdAt: record.value.createdAt
-    }
-}
 
-export async function getSessionInfo(authHeader) {
-    let sessionId
-    if (authHeader) {
-        sessionId = authHeader.replace('token ', '').replace('Bearer ', '')
-    }
-    if (!sessionId) {
-        return null
-    }
-    const record = await db.privateServerDb.accountSessions.get(sessionId)
-    if (record) {
-        return sessionInfoFromRecord(record)
-    }
-    return null
-}
-
-
-export async function login(parent, { username, password }, context) {
+export async function loginResolver(parent, { username, password }, context) {
     const accountRecord = await db.privateServerDb.accounts.get(username)
     if (!accountRecord || !(await verifyPassword(password, accountRecord.value.hashedPassword))) {
         return
@@ -132,4 +92,22 @@ async function createSession(context, { username, userId, dbUrl }) {
     }
 
     return context.auth
+}
+
+export const resolvers = {
+    Query: {
+        users: async () => {
+            const userlist = await db.publicServerDb.users.list()
+            return userlist.map(userToUserRef)
+        },
+        sessionInfo: async (parent, args, context) => {
+            return context.sessionInfo
+        }
+    },
+    UserRef: userRefResolver,
+    Mutation: {
+        login: loginResolver,
+        signup: signupResolver
+    }
+
 }
