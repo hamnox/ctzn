@@ -64,6 +64,7 @@ export class BaseHyperbeeDB extends EventEmitter {
 
   get dbType () {
     throw new Error('Must be overridden')
+    return ''
   }
 
   get supportedMethods () {

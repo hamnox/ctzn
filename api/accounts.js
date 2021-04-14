@@ -208,7 +208,7 @@ export function setup (wsServer, config) {
         throw new errors.InvalidCredentialsError('Password change code has expired')
       }
       const createdAt = new Date(accountRecord.value.passwordChangeCodeCreatedAt)
-      if (Date.now() - createdAt > PASSWORD_CHANGE_CODE_LIFETIME) {
+      if (Date.now() - createdAt.getTime() > PASSWORD_CHANGE_CODE_LIFETIME) {
         throw new errors.InvalidCredentialsError('Password change code has expired')
       }
       if (code !== accountRecord.value.passwordChangeCode) {
